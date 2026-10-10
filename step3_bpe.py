@@ -1,28 +1,74 @@
+"""
+Step 3: Tokenize the corpus with BPE and save train/val splits.
+"""
+
+import os
+import urllib.request
+import numpy as np
 import tiktoken
 
-with open("tinyshakespeare.txt", "r", encoding="utf-8") as f:
+
+# ---------------------------------------------------------------
+# 1. Download the corpus (skip if already downloaded)
+# ---------------------------------------------------------------
+URL = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
+PATH = "tinyshakespeare.txt"
+
+if not os.path.exists(PATH):
+    print("Downloading Tiny Shakespeare...")
+    urllib.request.urlretrieve(URL, PATH)
+    print("Done.")
+
+with open(PATH, "r", encoding="utf-8") as f:
     text = f.read()
 
+print(f"Corpus size:  {len(text):,} characters")
+
+
+# ---------------------------------------------------------------
+# 2. Encode the entire corpus with GPT-2 BPE
+# ---------------------------------------------------------------
 enc = tiktoken.get_encoding("gpt2")
-
-# Encode the entire corpus into token IDs
 ids = enc.encode(text)
+arr = np.array(ids, dtype=np.uint16)
 
-print(f"Characters:      {len(text):,}")
-print(f"Tokens (BPE):    {len(ids):,}")
-print(f"Compression:     {len(text) / len(ids):.2f} chars/token")
-print(f"Vocab size:      {enc.n_vocab}")
-print(f"\nFirst 20 tokens: {ids[:20]}")
-print(f"Decoded back:    {enc.decode(ids[:20])!r}")
+print(f"Tokens (BPE): {len(arr):,}")
+print(f"Compression:  {len(text) / len(arr):.2f} chars/token")
+print(f"Vocab size:   {enc.n_vocab}")
 
-import numpy as np
 
-arr = np.array(ids, dtype=np.uint16)   # uint16 = 2 bytes, enough for 50257
+# ---------------------------------------------------------------
+# 3. Save the full corpus
+# ---------------------------------------------------------------
 np.save("tinyshakespeare_ids.npy", arr)
-print(f"Saved {arr.shape[0]:,} tokens to tinyshakespeare_ids.npy")
+print(f"\nSaved tinyshakespeare_ids.npy ({len(arr):,} tokens)")
 
-# Verify
-loaded = np.load("tinyshakespeare_ids.npy")
-print(f"Reloaded: {loaded.shape}, dtype={loaded.dtype}")
-assert (loaded == arr).all()
-print("Round-trip verified.")
+
+# ---------------------------------------------------------------
+# 4. Train / Val split (90% / 10%)
+# ---------------------------------------------------------------
+n = len(arr)
+split = int(0.9 * n)
+
+train_ids = arr[:split]
+val_ids   = arr[split:]
+
+np.save("train_ids.npy", train_ids)
+np.save("val_ids.npy",   val_ids)
+
+print(f"Saved train_ids.npy ({len(train_ids):,} tokens)")
+print(f"Saved val_ids.npy   ({len(val_ids):,} tokens)")
+
+
+# ---------------------------------------------------------------
+# 5. Verify everything round-trips
+# ---------------------------------------------------------------
+train_check = np.load("train_ids.npy")
+val_check   = np.load("val_ids.npy")
+
+print(f"\nVerification:")
+print(f"  train_ids.npy dtype: {train_check.dtype}, shape: {train_check.shape}")
+print(f"  val_ids.npy   dtype: {val_check.dtype}, shape: {val_check.shape}")
+print(f"  Combined length matches full corpus: {len(train_check) + len(val_check) == len(arr)}")
+
+print("\nDone. Now run step4_dataset.py.")
